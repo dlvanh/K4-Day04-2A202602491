@@ -27,3 +27,7 @@ starter_v0/tests/
 Thumbs.db
 .idea/
 .vscode/
+
+.python-version
+pyproject.toml
+uv.lock
