@@ -13,7 +13,11 @@ tools:
       type: object
       properties:
         question: {type: string, default: "", description: "Câu hỏi"}
-        response_type: {type: string, enum: [text, yes_no, choice], default: "text", description: "Kiểu trả lời"}
+        response_type: 
+          type: string
+          enum: [text, yes_no, choice]
+          default: "text"
+          description: "Luôn thiết lập tường minh (explicitly) theo tình huống, tuyệt đối không phụ thuộc vào giá trị default."
         options: {type: array, default: [], items: {type: string}, description: "Các lựa chọn"}
       required: [question]
 
@@ -23,7 +27,11 @@ tools:
       type: object
       properties:
         query: {type: string, default: "", description: "Nội dung cần tìm"}
-        category: {type: string, enum: [all, vpn, email, wifi, printing, account, security, hardware, software, meeting_room], default: "all", description: "Nhóm hướng dẫn"}
+        category: 
+          type: string
+          enum: [all, vpn, email, wifi, printing, account, security, hardware, software, meeting_room]
+          default: "all"
+          description: "Chọn category cụ thể khớp chủ đề hội thoại. Chỉ dùng 'all' khi thật sự không xác định được chủ đề."
         top_k: {type: integer, default: 3, description: "Số kết quả"}
       required: [query]
 
@@ -33,7 +41,10 @@ tools:
       type: object
       properties:
         service: {type: string, enum: [vpn, email, sso, wifi, printing], description: "Tên dịch vụ"}
-        environment: {type: string, enum: [production, staging], default: "production", description: "Môi trường"}
+        environment: 
+          type: string
+          enum: [production, staging]
+          description: "Môi trường. Nếu mơ hồ và user không nêu rõ, hãy dùng tool clarify để hỏi thay vì tự đoán."
       required: [service]
 
   - name: inspect_device
@@ -41,8 +52,14 @@ tools:
     parameters:
       type: object
       properties:
-        asset_id: {type: string, description: "Mã tài sản"}
-        check: {type: string, enum: [all, network, vpn, security, hardware, software], default: "all", description: "Nhóm kiểm tra"}
+        asset_id: 
+          type: string
+          description: "Mã tài sản, bắt buộc phải có định dạng LT-xxx hoặc DT-xxx, khác hoàn toàn với employee ID (EMP-xxx)."
+        check:
+          type: string
+          enum: [all, network, vpn, security, hardware, software]
+          default: "all"
+          description: "Chọn check cụ thể khớp vấn đề người dùng nêu. Chỉ dùng 'all' khi thật sự không xác định được nhóm kiểm tra."
       required: [asset_id]
 
   - name: lookup_user
@@ -91,7 +108,11 @@ tools:
       type: object
       properties:
         query: {type: string, default: "", description: "Nội dung cần tìm"}
-        policy_area: {type: string, enum: [all, access_control, data_privacy, external_tools, incident_response, service_operations, ticketing], default: "all", description: "Nhóm chính sách"}
+        policy_area:
+          type: string
+          enum: [all, access_control, data_privacy, external_tools, incident_response, service_operations, ticketing]
+          default: "all"
+          description: "Chọn policy_area cụ thể khớp chủ đề câu hỏi. Chỉ dùng 'all' khi thật sự không xác định được chủ đề."
         top_k: {type: integer, default: 3, description: "Số mục"}
       required: [query]
 
