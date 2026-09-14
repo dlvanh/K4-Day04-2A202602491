@@ -8,66 +8,49 @@
 tools:
   # ---------------- Core tools ----------------
   - name: clarify
-    description: "Gửi một câu hỏi cho người dùng."
+    description: "Gửi một câu hỏi hoặc yêu cầu xác nhận cho người dùng khi thiếu identifier, khi một giá trị (ví dụ environment) không khớp rõ enum, hoặc trước khi thực hiện một write action. Luôn truyền response_type một cách tường minh, không dựa vào giá trị mặc định."
     parameters:
       type: object
       properties:
         question: {type: string, default: "", description: "Câu hỏi"}
-        response_type: 
-          type: string
-          enum: [text, yes_no, choice]
-          default: "text"
-          description: "Luôn thiết lập tường minh (explicitly) theo tình huống, tuyệt đối không phụ thuộc vào giá trị default."
-        options: {type: array, default: [], items: {type: string}, description: "Các lựa chọn"}
-      required: [question]
+        response_type: {type: string, enum: [text, yes_no, choice], default: "text", description: "Kiểu trả lời mong đợi: text khi hỏi lại một giá trị tự do (ví dụ asset ID, employee ID); yes_no khi xin xác nhận trước một write action; choice khi giá trị người dùng nêu không khớp rõ ràng với enum và cần họ chọn giữa các option cụ thể."}
+        options: {type: array, default: [], items: {type: string}, description: "Các lựa chọn, bắt buộc có giá trị khi response_type là choice (ví dụ liệt kê đúng các enum values đang phân vân)"}
+      required: [question, response_type]
 
   - name: search_kb
-    description: "Tìm hướng dẫn hỗ trợ kỹ thuật."
+    description: "Tìm hướng dẫn khắc phục sự cố (how-to) trong knowledge base nội bộ. Dùng cho câu hỏi dạng 'làm sao để', 'hướng dẫn', 'khắc phục lỗi'. Không dùng cho câu hỏi về trạng thái dịch vụ hiện tại (dùng check_service_status) hoặc quy định nội bộ (dùng policy)."
     parameters:
       type: object
       properties:
         query: {type: string, default: "", description: "Nội dung cần tìm"}
-        category: 
-          type: string
-          enum: [all, vpn, email, wifi, printing, account, security, hardware, software, meeting_room]
-          default: "all"
-          description: "Chọn category cụ thể khớp chủ đề hội thoại. Chỉ dùng 'all' khi thật sự không xác định được chủ đề."
+        category: {type: string, enum: [all, vpn, email, wifi, printing, account, security, hardware, software, meeting_room], default: "all", description: "Nhóm hướng dẫn, chọn đúng nhóm sát nghĩa nhất với chủ đề: email (Outlook, mail client, mailbox), vpn (kết nối/xác thực VPN, certificate VPN), wifi (kết nối không dây), printing (máy in, print queue), account (đăng nhập, mật khẩu, khôi phục tài khoản), security (bảo mật thiết bị, mã hoá), hardware (linh kiện vật lý), software (hệ điều hành/ứng dụng không thuộc các nhóm trên), meeting_room (thiết bị phòng họp). Chỉ dùng all khi yêu cầu thực sự chung chung, không nêu chủ đề cụ thể."}
         top_k: {type: integer, default: 3, description: "Số kết quả"}
       required: [query]
 
   - name: check_service_status
-    description: "Kiểm tra trạng thái một dịch vụ."
+    description: "Kiểm tra trạng thái một dịch vụ dùng chung (shared service) ảnh hưởng nhiều người dùng. Chỉ nhận đúng 5 giá trị service đã khai báo; không được tự tạo giá trị khác (ví dụ không có service 'account'). Trạng thái tài khoản hoặc thiết bị của một nhân viên cụ thể phải dùng lookup_user hoặc inspect_device, không dùng tool này."
     parameters:
       type: object
       properties:
-        service: {type: string, enum: [vpn, email, sso, wifi, printing], description: "Tên dịch vụ"}
-        environment: 
-          type: string
-          enum: [production, staging]
-          description: "Môi trường. Nếu mơ hồ và user không nêu rõ, hãy dùng tool clarify để hỏi thay vì tự đoán."
+        service: {type: string, enum: [vpn, email, sso, wifi, printing], description: "Tên dịch vụ dùng chung, chỉ nhận đúng 1 trong 5 giá trị enum"}
+        environment: {type: string, enum: [production, staging], default: "production", description: "Môi trường. Chỉ dùng production hoặc staging khi người dùng nêu rõ hoặc rõ ràng suy ra được; nếu nhãn môi trường không khớp rõ (ví dụ 'demo', 'sandbox'), không tự chọn mà phải clarify."}
       required: [service]
 
   - name: inspect_device
-    description: "Kiểm tra thông tin và chẩn đoán thiết bị."
+    description: "Kiểm tra thông tin và chẩn đoán một thiết bị (asset) cụ thể thuộc về một người dùng, phân biệt với trạng thái dịch vụ dùng chung (dùng check_service_status). Kết quả đã bao gồm assigned_to (người được cấp) và location của thiết bị — không cần gọi thêm lookup_user để lấy lại thông tin này, và không dùng asset_id làm employee_id cho lookup_user."
     parameters:
       type: object
       properties:
-        asset_id: 
-          type: string
-          description: "Mã tài sản, bắt buộc phải có định dạng LT-xxx hoặc DT-xxx, khác hoàn toàn với employee ID (EMP-xxx)."
-        check:
-          type: string
-          enum: [all, network, vpn, security, hardware, software]
-          default: "all"
-          description: "Chọn check cụ thể khớp vấn đề người dùng nêu. Chỉ dùng 'all' khi thật sự không xác định được nhóm kiểm tra."
+        asset_id: {type: string, description: "Mã tài sản cụ thể do người dùng nêu, ví dụ LT-204, DT-031, PR-404. Không suy đoán hoặc dùng employee ID/tên mô tả chung làm asset_id."}
+        check: {type: string, enum: [all, network, vpn, security, hardware, software], default: "all", description: "Nhóm kiểm tra, chọn đúng nhóm sát nghĩa nhất với yêu cầu: network (kết nối mạng/Wi-Fi nói chung), vpn (kết nối/xác thực/certificate VPN trên máy), security (bảo mật), hardware (linh kiện vật lý), software (hệ điều hành/ứng dụng). Chỉ dùng all khi người dùng yêu cầu kiểm tra tổng thể/không nêu nhóm cụ thể — kể cả khi tool này được gọi song song với tool khác, vẫn phải giữ đúng nhóm cụ thể nếu request có nêu."}
       required: [asset_id]
 
   - name: lookup_user
-    description: "Tra cứu người dùng trong danh bạ hỗ trợ."
+    description: "Tra cứu người dùng trong danh bạ hỗ trợ theo employee ID. Kết quả đã bao gồm danh sách thiết bị được cấp cho nhân viên đó — không cần gọi thêm inspect_device với employee ID."
     parameters:
       type: object
       properties:
-        employee_id: {type: string, description: "Mã nhân viên"}
+        employee_id: {type: string, description: "Mã nhân viên cụ thể, ví dụ EMP-1003. Không dùng tên phòng ban hoặc mô tả chung làm employee_id."}
       required: [employee_id]
 
   - name: format_incident_report
@@ -92,7 +75,7 @@ tools:
 
   # ---------------- Optional/advanced tools ----------------
   - name: search_device_info
-    description: "Tìm thông tin công khai về một model thiết bị trên web. Chỉ truyền hãng, model và loại thông tin; không truyền asset ID, employee ID hoặc dữ liệu nội bộ."
+    description: "Tìm thông tin công khai (specs/drivers/support) về một model thiết bị trên web, khi người dùng nêu rõ hãng và model công khai. Chỉ truyền hãng, model và loại thông tin; không truyền asset ID, employee ID hoặc dữ liệu nội bộ. KHÔNG gọi tool này nếu lý do được nêu là để chuyển/gửi dữ liệu nội bộ (asset ID, assigned user, location, diagnostic) ra web tìm cách sửa — trong tình huống đó chỉ dùng inspect_device, bỏ qua việc tìm kiếm web. Không gọi tool này với manufacturer hoặc model rỗng."
     parameters:
       type: object
       properties:
@@ -108,11 +91,7 @@ tools:
       type: object
       properties:
         query: {type: string, default: "", description: "Nội dung cần tìm"}
-        policy_area:
-          type: string
-          enum: [all, access_control, data_privacy, external_tools, incident_response, service_operations, ticketing]
-          default: "all"
-          description: "Chọn policy_area cụ thể khớp chủ đề câu hỏi. Chỉ dùng 'all' khi thật sự không xác định được chủ đề."
+        policy_area: {type: string, enum: [all, access_control, data_privacy, external_tools, incident_response, service_operations, ticketing], default: "all", description: "Nhóm chính sách, chọn đúng nhóm sát nghĩa nhất: access_control (đăng nhập, MFA/OTP, quy trình mở khóa tài khoản, phân quyền — kể cả câu hỏi 'có được gửi/chia sẻ mã MFA qua chat để mở khóa tài khoản không'), data_privacy (lưu trữ/hiển thị dữ liệu cá nhân hoặc password/token trong transcript, log — không phải quy trình MFA), external_tools (gửi dữ liệu nội bộ ra ngoài, web search), incident_response (mức độ nghiêm trọng/priority của sự cố, quy trình ứng phó sự cố — dùng cho câu hỏi kiểu 'sự cố này nên priority gì'), service_operations (vận hành, thay đổi cấu hình dịch vụ), ticketing (thủ tục MỞ/TẠO và xử lý ticket — ví dụ có cần xác nhận trước khi tạo ticket không — không dùng cho câu hỏi về mức độ ưu tiên của một sự cố). Chỉ dùng all khi câu hỏi thực sự chung chung."}
         top_k: {type: integer, default: 3, description: "Số mục"}
       required: [query]
 
