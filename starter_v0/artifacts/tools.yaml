@@ -13,9 +13,9 @@ tools:
       type: object
       properties:
         question: {type: string, default: "", description: "Câu hỏi"}
-        response_type: {type: string, enum: [text, yes_no, choice], default: "text", description: "Kiểu trả lời"}
+        response_type: {type: string, enum: [text, yes_no, choice], description: "Bắt buộc: text cho thông tin thiếu, yes_no cho xác nhận, choice cho lựa chọn hữu hạn"}
         options: {type: array, default: [], items: {type: string}, description: "Các lựa chọn"}
-      required: [question]
+      required: [question, response_type]
 
   - name: search_kb
     description: "Tìm hướng dẫn hỗ trợ kỹ thuật."
@@ -41,7 +41,7 @@ tools:
     parameters:
       type: object
       properties:
-        asset_id: {type: string, description: "Mã tài sản"}
+        asset_id: {type: string, pattern: "^(LT|DT)-.+$", description: "Mã tài sản cụ thể, phải bắt đầu bằng LT- hoặc DT-"}
         check: {type: string, enum: [all, network, vpn, security, hardware, software], default: "all", description: "Nhóm kiểm tra"}
       required: [asset_id]
 
@@ -50,7 +50,7 @@ tools:
     parameters:
       type: object
       properties:
-        employee_id: {type: string, description: "Mã nhân viên"}
+        employee_id: {type: string, pattern: "^EMP-.+$", description: "Mã nhân viên cụ thể, phải bắt đầu bằng EMP-"}
       required: [employee_id]
 
   - name: format_incident_report
