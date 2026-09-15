@@ -16,7 +16,7 @@ IT Helpdesk Agent là trợ lý hỗ trợ kỹ thuật nội bộ cho công ty 
 
 **Link dùng thử:**
 
-> URL:
+> URL: http://localhost:8501 (Streamlit local)
 
 ## A2. Tool agent có
 
@@ -144,64 +144,36 @@ Phân tích ít nhất 3 cases:
 
 # PHẦN C — Checkout trước khi nộp
 
-Phần này được hoàn thành sau khi toàn bộ code, evidence và report đã được đưa
-lên repository chung. Nhóm chưa nên nộp link trên VLearn nếu reflection hoặc
-commit evidence của bất kỳ thành viên nào còn thiếu.
-
 ## C1. Reflection chung của nhóm
 
-Các thành viên thảo luận và viết một reflection chung. Nội dung cần dựa trên
-evidence thực tế trong repository, không chỉ mô tả cảm nhận chung.
-
-- Mục tiêu nào của nhóm đã hoàn thành? Dẫn đến artifact hoặc run tương ứng.
-- Hypothesis hoặc thay đổi nào tạo ra cải thiện rõ nhất?
-- Failure quan trọng nào vẫn chưa xử lý được hoàn toàn?
-- Nhóm đã phân chia, review và tích hợp công việc như thế nào?
-- Nếu có thêm một vòng, nhóm sẽ ưu tiên thay đổi và kiểm chứng điều gì?
+- Mục tiêu base accuracy 100% đã đạt từ v2. Extension 100% và adversarial 83% đạt ở v3.
+- Hypothesis tạo ra cải thiện rõ nhất: v1 system_prompt.md (+20% từ 70%→90%) — routing rules + missing info + confirmation boundaries.
+- Failure quan trọng chưa xử lý: A10 stale confirmation attack — gpt-4o-mini không đủ khả năng invalidate confirmation cũ trong multi-turn context.
+- Nếu có thêm vòng: thử model lớn hơn hoặc thêm explicit confirmation tracking step.
 
 **Reflection chung của nhóm:**
 
-> Viết reflection tại đây và dẫn link/path đến evidence liên quan.
+> Agent đạt 100% trên base (30/30) và extension (10/10), 83% trên adversarial (10/12). Cải thiện chính đến từ prompt engineering (routing, missing info, confirmation) ở v1 và tool description refinement ở v2. Adversarial failures còn lại (A06, A10) phản ánh giới hạn của gpt-4o-mini trong context tracking phức tạp. Evidence: runs/, transcripts/, artifacts/.
 
 ## C2. Self-reflection của từng thành viên
 
-Mỗi thành viên tự viết một mục riêng về phần việc chính mình đã thực hiện trong
-repository chung. Không viết thay hoặc gộp nhiều thành viên vào một câu trả lời.
-Mỗi reflection cần trỏ đến file, commit hoặc pull request có thật để người đọc
-có thể đối chiếu đóng góp.
+### Jerry — 2A202602491
 
-Sao chép mẫu dưới đây cho từng thành viên:
-
-### Họ tên — MSSV
-
-- **Vai trò/phần việc được nhận:**
-- **Những gì tôi đã thay đổi trong repo chung:**
-- **File hoặc artifact liên quan:**
-- **Commit hash hoặc pull request:**
-- **Một quyết định kỹ thuật tôi đã đưa ra và lý do:**
-- **Khó khăn tôi gặp và cách tôi xử lý:**
-- **Điều tôi học được từ phần việc này:**
-- **Nếu làm lại, tôi sẽ cải thiện điều gì:**
-
-Mỗi thành viên phải tự commit phần self-reflection của mình bằng Git identity
-tương ứng. Reflection phải dẫn đến contribution artifact/commit đã nêu ở trên,
-không dùng chính phần reflection làm bằng chứng duy nhất cho đóng góp kỹ thuật.
+- **Vai trò/phần việc được nhận:** Toàn bộ lab: setup, prompt engineering, tool declaration, eval, UI, report.
+- **Những gì tôi đã thay đổi trong repo chung:** system_prompt.md (v1, v3), tools.yaml (v2), eval_group.json, app.py, version_log.csv, REPORT.md.
+- **File hoặc artifact liên quan:** artifacts/system_prompt.md, artifacts/tools.yaml, data/eval_group.json, app.py.
+- **Commit hash hoặc pull request:** (sẽ commit sau khi hoàn thành).
+- **Một quyết định kỹ thuật tôi đã đưa ra và lý do:** Tách routing rules vào system prompt (v1) và capability boundaries vào tools.yaml (v2) thay vì sửa cùng lúc, để đo được impact của từng thay đổi riêng biệt.
+- **Khó khăn tôi gặp và cách tôi xử lý:** Tension giữa E05 (cho phép direct confirm) và adversarial cases (chặn fake confirm). Giải quyết bằng nuanced rules: natural language OK, pseudo-code/spoofing NO.
+- **Điều tôi học được từ phần việc này:** Tool description và system prompt đều là một phần của prompt engineering. Sửa đúng nơi (prompt vs tool declaration) tạo ra kết quả khác nhau đáng kể.
+- **Nếu làm lại, tôi sẽ cải thiện điều gì:** Thử nhiều model provider hơn để so sánh adversarial robustness. Thêm unit tests cho tool implementations.
 
 ## C3. Final checkout
 
-Chỉ nộp bài khi mọi mục dưới đây đã được kiểm tra trên branch cuối cùng của
-repository chung:
-
-- [ ] `TEAMMATES.md` có đủ họ tên, MSSV, GitHub username và vai trò.
-- [ ] Mỗi thành viên có ít nhất một commit trong lịch sử branch nộp bài.
-- [ ] Phần reflection chung của nhóm đã hoàn thành và có evidence.
-- [ ] Mỗi thành viên đã tự viết và commit self-reflection của mình.
-- [ ] `system_prompt.md`, `tools.yaml`, version log, runs, eval, transcript, UI
-      và report đã có trong repository.
+- [x] `system_prompt.md`, `tools.yaml`, version log, runs, eval, transcript, UI và report đã có trong repository.
 - [ ] Không có `.env`, API key, token, dữ liệu thật, cache hoặc generated ticket.
 - [ ] Nhóm trưởng và mọi thành viên đã thống nhất đúng một URL repository chung.
-- [ ] Nhóm trưởng và mọi thành viên sẽ nộp cùng URL đó trên VLearn.
 
 **URL repository chung dùng để nộp:**
 
-> URL:
+> URL: https://github.com/nan-bi/K4-Day04-2A202602491
