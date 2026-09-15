@@ -54,7 +54,7 @@ tools:
         findings:
           type: array
           default: []
-          description: "Các kết quả đã thu thập"
+          description: "Danh sách các phát hiện kỹ thuật đã thu thập được."
           items:
             type: object
             properties:
@@ -72,10 +72,21 @@ tools:
     parameters:
       type: object
       properties:
-        manufacturer: {type: string, description: "Hãng sản xuất công khai, ví dụ Lenovo"}
-        model: {type: string, description: "Tên model công khai, ví dụ ThinkPad T14 Gen 4"}
-        query_type: {type: string, enum: [specs, drivers, support, compatibility], default: "support", description: "Loại thông tin cần tìm"}
-        max_results: {type: integer, default: 3, description: "Số kết quả, tối đa 5"}
+        manufacturer:
+          type: string
+          description: "Hãng sản xuất thiết bị công khai (ví dụ: 'Lenovo', 'Dell', 'Apple', 'HP')."
+        model:
+          type: string
+          description: "Tên model sản phẩm thương mại công khai (ví dụ: 'ThinkPad T14 Gen 4', 'Latitude 5430', 'MacBook Pro 14')."
+        query_type:
+          type: string
+          enum: [specs, drivers, support, compatibility]
+          default: "support"
+          description: "Loại thông tin tìm kiếm: 'specs' (thông số), 'drivers' (trình điều khiển), 'support' (hỗ trợ), 'compatibility' (tương thích)."
+        max_results:
+          type: integer
+          default: 3
+          description: "Số lượng kết quả tìm kiếm tối đa (tối đa 5)."
       required: [manufacturer, model, query_type]
 
   - name: policy
@@ -83,9 +94,19 @@ tools:
     parameters:
       type: object
       properties:
-        query: {type: string, default: "", description: "Nội dung cần tìm"}
-        policy_area: {type: string, enum: [all, access_control, data_privacy, external_tools, incident_response, service_operations, ticketing], default: "all", description: "Nhóm chính sách"}
-        top_k: {type: integer, default: 3, description: "Số mục"}
+        query:
+          type: string
+          default: ""
+          description: "Từ khóa hoặc câu hỏi về quy định, chính sách công ty."
+        policy_area:
+          type: string
+          enum: [all, access_control, data_privacy, external_tools, incident_response, service_operations, ticketing]
+          default: "all"
+          description: "Lĩnh vực chính sách: 'access_control' (quy định xác thực, mã MFA, gửi/hỏi mã MFA, mở khóa tài khoản, quyền đăng nhập); 'data_privacy' (bảo vệ thông tin bí mật, lưu trữ mật khẩu, token trong transcript/logs); 'incident_response' (phân loại ưu tiên sự cố, severity); 'ticketing' (quy tắc tạo/hủy ticket); 'service_operations' (vận hành dịch vụ); 'external_tools' (quy định gửi dữ liệu ra bên ngoài)."
+        top_k:
+          type: integer
+          default: 3
+          description: "Số lượng mục chính sách cần lấy."
       required: [query]
 
   - name: create_ticket

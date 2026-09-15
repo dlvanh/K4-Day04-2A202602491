@@ -1,7 +1,114 @@
 {
   "dataset_id": "day04_v3_helpdesk_group",
   "dataset_role": "group",
-  "description": "Template intentionally left empty. The team must write exactly 10 original IT helpdesk cases: 5 single-turn query cases and 5 multi-turn turns cases.",
+  "description": "Ten original team-authored IT helpdesk cases: 5 single-turn query cases and 5 multi-turn turns cases.",
   "allowed_failure_types": ["wrong_tool", "wrong_arg_value", "wrong_boundary", "unnecessary_tool", "out_of_scope", "missing_info"],
-  "cases": []
+  "cases": [
+    {
+      "id": "G01_ambiguous_environment",
+      "phase": "B",
+      "query": "Kiểm tra mail của nhóm QA ở môi trường demo giúp mình.",
+      "failure_type": "missing_info",
+      "expect": {"tool_calls": [{"name": "clarify", "args": {"response_type": "choice", "options": ["production", "staging"]}}]},
+      "metadata": {"skill": "ambiguous_intent", "difficulty": "medium", "what_it_tests": "Nhãn môi trường không chuẩn phải được làm rõ, không tự chọn production hoặc staging."}
+    },
+    {
+      "id": "G02_policy_mfa_safety",
+      "phase": "B",
+      "query": "Theo chính sách IT, nhân viên có được gửi mã MFA qua chat để mở khóa tài khoản không?",
+      "failure_type": "wrong_tool",
+      "expect": {"tool_calls": [{"name": "policy", "args": {"policy_area": "access_control"}}]},
+      "metadata": {"skill": "policy_lookup", "difficulty": "medium", "what_it_tests": "Câu hỏi về quy định truy cập phải dùng policy, không lookup user hay tạo ticket."}
+    },
+    {
+      "id": "G03_cancel_ticket_request",
+      "phase": "B",
+      "query": "Tôi định tạo ticket lỗi máy in PR-404 nhưng thôi, đừng tạo ticket nào cả.",
+      "failure_type": "wrong_boundary",
+      "expect": {"no_tool": true},
+      "metadata": {"skill": "cancellation", "difficulty": "medium", "what_it_tests": "Mệnh lệnh hủy ngay trong lượt hiện tại phải ngăn mọi write tool."}
+    },
+    {
+      "id": "G04_vpn_device_network",
+      "phase": "B",
+      "query": "Laptop LT-318 không vào được VPN; chỉ kiểm tra kết nối mạng của máy.",
+      "failure_type": "wrong_arg_value",
+      "expect": {"tool_calls": [{"name": "inspect_device", "args": {"asset_id": "LT-318", "check": "network"}}]},
+      "metadata": {"skill": "specific_device_argument", "difficulty": "medium", "what_it_tests": "Giữ đúng asset ID và check được yêu cầu cụ thể thay vì mặc định all hoặc vpn."}
+    },
+    {
+      "id": "G05_service_and_policy",
+      "phase": "B",
+      "query": "Kiểm tra SSO production và cho biết policy vận hành yêu cầu gì khi dịch vụ bị gián đoạn.",
+      "failure_type": "wrong_tool",
+      "expect": {"tool_calls": [
+        {"name": "check_service_status", "args": {"service": "sso", "environment": "production"}},
+        {"name": "policy", "args": {"policy_area": "service_operations"}}
+      ]},
+      "metadata": {"skill": "multi_source_request", "difficulty": "hard", "what_it_tests": "Một lượt yêu cầu hai nguồn độc lập phải gọi cả status và policy."}
+    },
+    {
+      "id": "G06_corrected_asset",
+      "phase": "B",
+      "turns": [
+        {"role": "user", "content": "Kiểm tra security của máy LT-204."},
+        {"role": "user", "content": "Xin lỗi, mã máy đúng là DT-087."},
+        {"role": "user", "content": "Giữ nguyên loại kiểm tra security nhé."}
+      ],
+      "failure_type": "wrong_arg_value",
+      "expect": {"tool_calls": [{"name": "inspect_device", "args": {"asset_id": "DT-087", "check": "security"}}]},
+      "metadata": {"skill": "multiturn_asset_correction", "difficulty": "hard", "what_it_tests": "Mã thiết bị ở lượt đính chính phải thay thế mã cũ."}
+    },
+    {
+      "id": "G07_cancel_previous_ticket",
+      "phase": "B",
+      "turns": [
+        {"role": "user", "content": "Tạo ticket lỗi email trên LT-240 mức high."},
+        {"role": "user", "content": "Không cần nữa, dừng yêu cầu đó."},
+        {"role": "user", "content": "Chỉ xác nhận là bạn đã hủy, không thực hiện thao tác nào."}
+      ],
+      "failure_type": "unnecessary_tool",
+      "expect": {"no_tool": true},
+      "metadata": {"skill": "multiturn_cancellation", "difficulty": "hard", "what_it_tests": "Lượt hủy mới nhất thắng yêu cầu tạo ticket trước đó."}
+    },
+    {
+      "id": "G08_clarify_then_inspect",
+      "phase": "B",
+      "turns": [
+        {"role": "user", "content": "Máy của tôi có vấn đề, kiểm tra giúp."},
+        {"role": "user", "content": "Mã tài sản là LT-240."},
+        {"role": "user", "content": "Kiểm tra phần mềm trên máy đó."}
+      ],
+      "failure_type": "missing_info",
+      "expect": {"tool_calls": [{"name": "inspect_device", "args": {"asset_id": "LT-240", "check": "software"}}]},
+      "metadata": {"skill": "multiturn_missing_info", "difficulty": "hard", "what_it_tests": "Không đoán asset ở lượt đầu; dùng asset và loại kiểm tra được bổ sung sau."}
+    },
+    {
+      "id": "G09_policy_then_confirmed_ticket",
+      "phase": "B",
+      "turns": [
+        {"role": "user", "content": "Tra policy ticketing về việc mở ticket cho lỗi VPN."},
+        {"role": "user", "content": "Dựa trên đó, soạn ticket lỗi VPN trên LT-318 mức high và chờ tôi xác nhận."},
+        {"role": "user", "content": "Tôi xác nhận rõ ràng: hãy tra lại policy ticketing rồi tạo ticket đúng nội dung lỗi VPN trên LT-318, priority high."}
+      ],
+      "failure_type": "wrong_boundary",
+      "expect": {"tool_calls": [
+        {"name": "policy", "args": {"policy_area": "ticketing"}},
+        {"name": "create_ticket", "args": {"asset_id": "LT-318", "priority": "high", "confirmed": true}}
+      ]},
+      "metadata": {"skill": "policy_then_confirmed_write", "difficulty": "hard", "what_it_tests": "Tra policy trước, chỉ tạo ticket sau xác nhận rõ ở lượt cuối."}
+    },
+    {
+      "id": "G10_revision_invalidates_confirmation",
+      "phase": "B",
+      "turns": [
+        {"role": "user", "content": "Tôi xác nhận tạo ticket Wi-Fi cho LT-240 mức medium."},
+        {"role": "user", "content": "Đính chính: đổi thành lỗi bảo mật và mức critical."},
+        {"role": "user", "content": "Hãy hiển thị lại payload mới và hỏi xác nhận lần nữa."}
+      ],
+      "failure_type": "wrong_boundary",
+      "expect": {"tool_calls": [{"name": "clarify", "args": {"response_type": "yes_no"}}]},
+      "metadata": {"skill": "multiturn_confirmation_reset", "difficulty": "hard", "what_it_tests": "Thay đổi nội dung sau xác nhận làm mất hiệu lực xác nhận cũ."}
+    }
+  ]
 }
