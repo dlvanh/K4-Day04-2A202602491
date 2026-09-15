@@ -1,234 +1,189 @@
+from __future__ import annotations
+
 import json
-from pathlib import Path
 from datetime import datetime
+from typing import Any
+
 import streamlit as st
 
-from env_loader import load_lab_env
+from chat import ARTIFACTS_DIR, ROOT, now_iso, run_model_tool_loop, safe_slug, trim_history, write_transcript
 from providers import make_provider
 from tools import load_tool_declarations, to_openai_tools
-from chat import run_model_tool_loop
-from versioning import build_artifact_version
+from versioning import artifact_version_dict, build_artifact_version
 
-ROOT = Path(__file__).parent
-load_lab_env(ROOT)
+PROVIDERS = ["openai", "openrouter", "anthropic", "gemini"]
+SYSTEM_PROMPT_PATH = ARTIFACTS_DIR / "system_prompt.md"
+TOOLS_PATH = ARTIFACTS_DIR / "tools.yaml"
 
-# Cấu hình trang cơ bản
-st.set_page_config(
-    page_title="Northstar Labs - IT Helpdesk",
-    page_icon="🌌",
-    layout="wide",
-    initial_sidebar_state="expanded"
-)
+st.set_page_config(page_title="IT Helpdesk Agent", page_icon="🛠️", layout="wide")
 
-# ---------------------------------------------------------
-# CUSTOM CSS STYLE (UI/UX Tối Ưu)
-# ---------------------------------------------------------
-st.markdown("""
-<style>
-    /* Tổng quan nền tối và font chữ */
-    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600&display=swap');
-    
-    html, body, [class*="css"]  {
-        font-family: 'Inter', sans-serif;
+
+@st.cache_resource(show_spinner=False)
+def get_provider(provider_name: str):
+    return make_provider(provider_name)
+
+
+def load_artifacts(version_label: str):
+    system_prompt = SYSTEM_PROMPT_PATH.read_text(encoding="utf-8")
+    declarations = load_tool_declarations(TOOLS_PATH)
+    openai_tools = to_openai_tools(declarations)
+    artifact_version = build_artifact_version(version_label, SYSTEM_PROMPT_PATH, TOOLS_PATH)
+    return system_prompt, openai_tools, artifact_version
+
+
+def init_state() -> None:
+    defaults = {
+        "history": [],
+        "display_turns": [],
+        "turn_index": 0,
+        "version_label": "v14",
+        "transcript_id": None,
+        "transcript": None,
     }
-    
-    .stApp {
-        background: radial-gradient(circle at 10% 20%, rgba(20, 20, 32, 1) 0%, rgba(10, 10, 15, 1) 90%);
-        color: #E2E8F0;
-    }
+    for key, value in defaults.items():
+        if key not in st.session_state:
+            st.session_state[key] = value
 
-    /* Tiêu đề chính */
-    .main-title {
-        background: linear-gradient(90deg, #4facfe 0%, #00f2fe 100%);
-        -webkit-background-clip: text;
-        -webkit-text-fill-color: transparent;
-        font-weight: 800;
-        font-size: 2.8rem;
-        margin-bottom: 0px;
-        padding-bottom: 0px;
-    }
-    .sub-title {
-        color: #94A3B8;
-        font-size: 1.1rem;
-        font-weight: 300;
-        margin-bottom: 2rem;
-    }
 
-    /* Sidebar glassmorphism */
-    [data-testid="stSidebar"] {
-        background: rgba(30, 30, 46, 0.6) !important;
-        backdrop-filter: blur(12px) !important;
-        border-right: 1px solid rgba(255, 255, 255, 0.05);
-    }
+def reset_conversation() -> None:
+    st.session_state.history = []
+    st.session_state.display_turns = []
+    st.session_state.turn_index = 0
+    st.session_state.transcript_id = None
+    st.session_state.transcript = None
 
-    /* Tùy chỉnh chat box */
-    .stChatMessage {
-        background: rgba(255,255,255,0.02);
-        border-radius: 12px;
-        padding: 1rem;
-        border: 1px solid rgba(255,255,255,0.05);
-        margin-bottom: 1rem;
-    }
-    
-    /* Box hiển thị Tool Traces (Đẹp hơn JSON thường) */
-    .tool-box {
-        background: #1E293B;
-        border-left: 4px solid #3B82F6;
-        border-radius: 6px;
-        padding: 12px;
-        margin-top: 10px;
-        font-family: 'Courier New', Courier, monospace;
-        font-size: 0.85rem;
-    }
-    .tool-header {
-        font-weight: bold;
-        color: #60A5FA;
-        margin-bottom: 6px;
-    }
-    .tool-success { border-left-color: #10B981; }
-    .tool-success .tool-header { color: #34D399; }
-    
-    /* Expander style */
-    .streamlit-expanderHeader {
-        font-size: 0.9rem !important;
-        color: #94A3B8 !important;
-        background: rgba(0,0,0,0.2) !important;
-        border-radius: 6px;
-    }
-</style>
-""", unsafe_allow_html=True)
 
-# ---------------------------------------------------------
-# LOAD DATA & ARTIFACTS
-# ---------------------------------------------------------
-SYSTEM_PROMPT_PATH = ROOT / "artifacts" / "system_prompt.md"
-TOOLS_PATH = ROOT / "artifacts" / "tools.yaml"
+def render_tool_activity(rounds: list[dict[str, Any]]) -> None:
+    for round_record in rounds:
+        for call in round_record["tool_calls"]:
+            st.markdown(f"🔧 **{call['name']}**`({json.dumps(call['args'], ensure_ascii=False)})`")
+        for event in round_record["tool_results"]:
+            tool_result = event.get("result")
+            is_error = isinstance(tool_result, dict) and tool_result.get("error")
+            icon = "❌" if is_error else "✅"
+            with st.expander(f"{icon} {event['tool']} result", expanded=bool(is_error)):
+                st.json(tool_result)
 
-system_prompt = SYSTEM_PROMPT_PATH.read_text(encoding="utf-8")
-tool_decls = load_tool_declarations(TOOLS_PATH)
-openai_tools = to_openai_tools(tool_decls)
 
-artifact_ver = build_artifact_version("v3", SYSTEM_PROMPT_PATH, TOOLS_PATH)
+init_state()
 
-# ---------------------------------------------------------
-# SIDEBAR CONFIGURATION
-# ---------------------------------------------------------
 with st.sidebar:
-    st.image("https://cdn-icons-png.flaticon.com/512/2082/2082875.png", width=60)
-    st.markdown("### ⚙️ Cài đặt Agent")
-    st.caption("IT Helpdesk System Config")
-    
-    provider_choice = st.selectbox("Provider", ["openrouter", "openai", "anthropic", "gemini"], index=0)
-    
-    st.divider()
-    st.markdown("#### 📦 Trạng Thái Phiên Bản")
-    st.markdown(f"**Version Label:** `{artifact_ver.artifact_version}`")
-    st.caption(f"**Prompt Hash:** {artifact_ver.prompt_hash[:8]}")
-    st.caption(f"**Tools Hash:** {artifact_ver.tools_hash[:8]}")
-    
-    st.divider()
-    st.markdown("#### 🛠️ Các Công Cụ Có Sẵn")
-    for t in tool_decls:
-        st.markdown(f"- 🔧 `{t['name']}`")
-        
-    st.divider()
-    if st.button("🗑️ Xóa Lịch Sử Trò Chuyện", use_container_width=True, type="primary"):
-        st.session_state.messages = []
+    st.header("Agent settings")
+    provider_name = st.selectbox("Provider", PROVIDERS, index=PROVIDERS.index("openai"))
+    model_override = st.text_input("Model override (optional)", value="")
+    version_label = st.text_input("Artifact version label", value=st.session_state.version_label)
+    st.session_state.version_label = version_label
+    history_window = st.slider("History window (turns)", 1, 10, 5)
+    max_tool_rounds = st.slider("Max tool rounds", 1, 6, 4)
+
+    if st.button("New conversation", use_container_width=True):
+        reset_conversation()
         st.rerun()
 
-# ---------------------------------------------------------
-# MAIN INTERFACE
-# ---------------------------------------------------------
-st.markdown('<div class="main-title">IT Helpdesk Agent</div>', unsafe_allow_html=True)
-st.markdown('<div class="sub-title">Hỗ trợ kỹ thuật tự động cho nhân viên Northstar Labs ✦ Nhanh chóng & Bảo mật</div>', unsafe_allow_html=True)
+    st.divider()
+    system_prompt, openai_tools, artifact_version = load_artifacts(version_label)
+    st.subheader("Artifact version")
+    st.code(artifact_version.artifact_version, language="text")
+    st.caption(f"prompt_hash: {artifact_version.prompt_hash[:16]}…")
+    st.caption(f"tools_hash: {artifact_version.tools_hash[:16]}…")
+    with st.expander("System prompt"):
+        st.text(system_prompt)
+    with st.expander(f"Declared tools ({len(openai_tools)})"):
+        for tool in openai_tools:
+            fn = tool["function"]
+            st.markdown(f"**{fn['name']}** — {fn['description']}")
 
-if "messages" not in st.session_state:
-    st.session_state.messages = [
-        {"role": "assistant", "content": "👋 Xin chào! Tôi là trợ lý IT Helpdesk của Northstar Labs. Tôi có thể giúp bạn kiểm tra VPN, Wi-Fi, trạng thái thiết bị hoặc tìm hướng dẫn sử dụng. Bạn cần hỗ trợ gì hôm nay?"}
+    if st.session_state.transcript_id:
+        transcript_path = ROOT / "transcripts" / f"{st.session_state.transcript_id}.transcript.json"
+        st.caption(f"Transcript: {transcript_path}")
+
+st.title("IT Helpdesk Agent — Chat")
+st.caption("Northstar Labs internal IT service desk assistant (demo UI)")
+
+for turn in st.session_state.display_turns:
+    with st.chat_message("user"):
+        st.write(turn["user"])
+    with st.chat_message("assistant"):
+        render_tool_activity(turn.get("rounds", []))
+        if turn.get("status") == "provider_error":
+            st.error(f"Provider error: {turn.get('error')}")
+        else:
+            st.write(turn.get("assistant_text"))
+        st.caption(
+            f"status={turn.get('status')} · round(s)={len(turn.get('rounds', []))} · "
+            f"artifact={turn.get('artifact_version')}"
+        )
+
+user_text = st.chat_input("Nhập yêu cầu IT helpdesk...")
+if user_text:
+    with st.chat_message("user"):
+        st.write(user_text)
+
+    st.session_state.turn_index += 1
+    messages = [
+        {"role": "system", "content": system_prompt},
+        *trim_history(st.session_state.history, history_window),
+        {"role": "user", "content": user_text},
     ]
 
-# Render chat history
-for msg in st.session_state.messages:
-    with st.chat_message(msg["role"], avatar="👨‍💻" if msg["role"] == "user" else "🤖"):
-        st.markdown(msg["content"])
-        
-        # Nếu có gọi tools, hiển thị UI đẹp thay vì st.json
-        if "tools" in msg and msg["tools"]:
-            with st.expander("🛠️ Xem chi tiết các tiến trình hệ thống (Traces)"):
-                for t_event in msg["tools"]:
-                    t_name = t_event.get("tool", "unknown")
-                    t_args = t_event.get("args", {})
-                    t_res = t_event.get("result", {})
-                    
-                    is_error = isinstance(t_res, dict) and "error" in t_res
-                    box_class = "tool-box" if is_error else "tool-box tool-success"
-                    icon = "⚠️" if is_error else "✅"
-                    
-                    st.markdown(f"""
-                    <div class="{box_class}">
-                        <div class="tool-header">{icon} Gọi công cụ: {t_name}</div>
-                        <b>Tham số (Args):</b><br/> {json.dumps(t_args, ensure_ascii=False, indent=2)}<br/><br/>
-                        <b>Kết quả trả về:</b><br/> {json.dumps(t_res, ensure_ascii=False, indent=2)}
-                    </div>
-                    """, unsafe_allow_html=True)
+    if st.session_state.transcript_id is None:
+        timestamp = datetime.now().strftime("%Y%m%dT%H%M%S%f")
+        st.session_state.transcript_id = "_".join(
+            [safe_slug(version_label), safe_slug(provider_name), "ui", timestamp]
+        )
+        st.session_state.transcript = {
+            "transcript_id": st.session_state.transcript_id,
+            **artifact_version_dict(artifact_version),
+            "provider": provider_name,
+            "model": model_override or None,
+            "system_prompt": str(SYSTEM_PROMPT_PATH),
+            "tools": str(TOOLS_PATH),
+            "history_window": history_window,
+            "max_tool_rounds": max_tool_rounds,
+            "created_at": now_iso(),
+            "updated_at": now_iso(),
+            "turns": [],
+        }
 
-# ---------------------------------------------------------
-# CHAT INPUT & LOGIC
-# ---------------------------------------------------------
-if prompt := st.chat_input("Ví dụ: 'Kiểm tra VPN giúp tôi' hoặc 'Tạo ticket máy in'..."):
-    
-    # Thêm tin nhắn user vào UI
-    st.session_state.messages.append({"role": "user", "content": prompt})
-    with st.chat_message("user", avatar="👨‍💻"):
-        st.markdown(prompt)
+    turn_record: dict[str, Any] = {
+        "turn_index": st.session_state.turn_index,
+        "started_at": now_iso(),
+        "user": user_text,
+        "status": "started",
+        "assistant_text": None,
+        "rounds": [],
+        "tool_events": [],
+        "artifact_version": artifact_version.artifact_version,
+    }
 
-    # Chuẩn bị context gửi cho Agent
-    provider = make_provider(provider_choice)
-    chat_history = [{"role": "system", "content": system_prompt}]
-    
-    # Chỉ lấy các tin nhắn text, bỏ qua cấu trúc hiển thị tools để tránh nhiễu model
-    for m in st.session_state.messages:
-        chat_history.append({"role": m["role"], "content": m["content"]})
-
-    # Agent xử lý
-    with st.chat_message("assistant", avatar="🤖"):
-        with st.spinner("Đang chẩn đoán hệ thống và truy xuất dữ liệu..."):
-            result = run_model_tool_loop(
-                provider=provider,
-                messages=chat_history,
-                tools=openai_tools,
-                model=None,
-                max_tool_rounds=4,
+    with st.chat_message("assistant"):
+        try:
+            provider = get_provider(provider_name)
+            with st.spinner("Agent is working..."):
+                result = run_model_tool_loop(
+                    provider=provider,
+                    messages=messages,
+                    tools=openai_tools,
+                    model=model_override or None,
+                    max_tool_rounds=max_tool_rounds,
+                )
+            turn_record.update(result)
+            render_tool_activity(result["rounds"])
+            assistant_text = result["assistant_text"]
+            st.write(assistant_text)
+            st.caption(
+                f"status={result['status']} · round(s)={len(result['rounds'])} · "
+                f"artifact={artifact_version.artifact_version}"
             )
-            
-            reply = result["assistant_text"]
-            tool_events = result.get("tool_events", [])
-            
-            st.markdown(reply)
-            
-            # Render tool events nếu có
-            if tool_events:
-                with st.expander("🛠️ Xem chi tiết các tiến trình hệ thống (Traces)"):
-                    for t_event in tool_events:
-                        t_name = t_event.get("tool", "unknown")
-                        t_args = t_event.get("args", {})
-                        t_res = t_event.get("result", {})
-                        
-                        is_error = isinstance(t_res, dict) and "error" in t_res
-                        box_class = "tool-box" if is_error else "tool-box tool-success"
-                        icon = "⚠️" if is_error else "✅"
-                        
-                        st.markdown(f"""
-                        <div class="{box_class}">
-                            <div class="tool-header">{icon} Gọi công cụ: {t_name}</div>
-                            <b>Tham số (Args):</b><br/> {json.dumps(t_args, ensure_ascii=False, indent=2)}<br/><br/>
-                            <b>Kết quả trả về:</b><br/> {json.dumps(t_res, ensure_ascii=False, indent=2)}
-                        </div>
-                        """, unsafe_allow_html=True)
+            st.session_state.history.append({"role": "user", "content": user_text})
+            st.session_state.history.append({"role": "assistant", "content": assistant_text})
+        except Exception as exc:  # keep UI usable; surface the error as evidence
+            turn_record.update({"status": "provider_error", "error": f"{type(exc).__name__}: {exc}"})
+            st.error(f"Provider error: {turn_record['error']}")
 
-    # Lưu lại lịch sử
-    st.session_state.messages.append({
-        "role": "assistant",
-        "content": reply,
-        "tools": tool_events,
-    })
+    turn_record["ended_at"] = now_iso()
+    st.session_state.display_turns.append(turn_record)
+    st.session_state.transcript["turns"].append(turn_record)
+    transcript_path = ROOT / "transcripts" / f"{st.session_state.transcript_id}.transcript.json"
+    write_transcript(transcript_path, st.session_state.transcript)
+    st.rerun()
